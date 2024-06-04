@@ -1,0 +1,3 @@
+args (FastSRGAN)
+
+1) hr_size -> hr_height , hr_width
