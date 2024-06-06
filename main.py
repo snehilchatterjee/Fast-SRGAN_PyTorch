@@ -1,12 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+#from torch.utils.data import DataLoader
 from argparse import ArgumentParser
 import os
-from dataloader import ImageDataset
+#from dataloader import ImageDataset
+from dataset import get_dataloader
 from model import FastSRGAN
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+import warnings
+
+warnings.filterwarnings('ignore')
 
 parser = ArgumentParser()
 parser.add_argument('--image_dir', type=str, help='Path to high resolution image directory.')
@@ -35,7 +40,7 @@ def pretrain_step(model, x, y, criterion, optimizer):
     return loss.item()
 
 
-def pretrain_generator(model, dataloader, writer, device):
+def pretrain_generator(model, dataloader, writer, device,args):
     """Function that pretrains the generator slightly, to avoid local minima.
     Args:
         model: The PyTorch model to train.
@@ -101,7 +106,7 @@ def train_step(model, x, y, gen_optimizer, disc_optimizer, device):
     return d_loss.item(), adv_loss.item(), content_loss.item(), mse_loss.item()
 
 
-def train(model, dataloader, log_iter, writer, device):
+def train(model, dataloader, log_iter, writer, device,args):
     """
     Function that defines a single training step for the SR-GAN.
     Args:
@@ -144,24 +149,26 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Create the PyTorch dataset and dataloader.
-    dataset = ImageDataset(args.image_dir, args.hr_size)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
-
+    #dataset = ImageDataset(args.image_dir, args.hr_size)
+    #dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    dataloader = get_dataloader(args.image_dir, args.hr_size, args.batch_size, num_workers=4)
+    
     # Initialize the GAN object.
-    gan = FastSRGAN(args).to(device)
+    gan = FastSRGAN(args)
 
     # Define the directory for saving pretraining loss tensorboard summary.
     pretrain_summary_writer = SummaryWriter('logs/pretrain')
 
     # Run pre-training.
-    pretrain_generator(gan, dataloader, pretrain_summary_writer, device)
+    pretrain_generator(gan, dataloader, pretrain_summary_writer, device,args)
 
     # Define the directory for saving the SRGAN training tensorboard summary.
     train_summary_writer = SummaryWriter('logs/train')
 
     # Run training.
-    for _ in range(args.epochs):
-        train(gan, dataloader, args.save_iter, train_summary_writer, device)
+    for _ in tqdm(range(args.epochs)):
+        print(f'Epoch {_} running')
+        train(gan, dataloader, args.save_iter, train_summary_writer, device,args)
 
 
 if __name__ == '__main__':
